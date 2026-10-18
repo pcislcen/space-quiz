@@ -374,6 +374,10 @@
     .final-score strong { font-size: 24px; letter-spacing: -.04em; }
     .final-score span { color: var(--muted); font-size: 14px; }
 
+    .personal-best { margin: 0 0 8px; }
+    .personal-best strong { color: var(--text); }
+    .record-message, .storage-notice { margin: 0 0 12px; color: var(--muted); font-size: 13px; }
+
     .result .restart { display: flex; width: 100%; }
     .sr-only {
       position: absolute;
@@ -536,13 +540,36 @@
     let current = 0;
     let score = 0;
     let answered = false;
+    let personalBest = null;
+    let recordLoaded = false;
+    let storageUnavailable = false;
 
-    const questionEl = document.getElementById("question");
-    const answersEl = document.getElementById("answers");
-    const feedbackEl = document.getElementById("feedback");
-    const nextButton = document.getElementById("next");
+    const personalBestKey = "orbita-personal-best";
+    let questionEl = document.getElementById("question");
+    let answersEl = document.getElementById("answers");
+    let feedbackEl = document.getElementById("feedback");
+    let nextButton = document.getElementById("next");
+    const quizEl = document.getElementById("quiz");
+    const quizMarkup = quizEl.innerHTML;
     const progressFill = document.getElementById("progress-fill");
     const progressTrack = document.querySelector(".progress-track");
+
+    function loadPersonalBest() {
+      if (recordLoaded) return;
+      recordLoaded = true;
+      try {
+        const savedScore = localStorage.getItem(personalBestKey);
+        const parsedScore = Number(savedScore);
+        const maximumScore = questions.length * 10;
+        if (savedScore !== null && /^(0|[1-9]\d*)$/.test(savedScore) &&
+            Number.isInteger(parsedScore) &&
+            parsedScore >= 0 && parsedScore <= maximumScore && parsedScore % 10 === 0) {
+          personalBest = parsedScore;
+        }
+      } catch {
+        storageUnavailable = true;
+      }
+    }
 
     function renderQuestion() {
       const item = questions[current];
@@ -601,6 +628,19 @@
     }
 
     function showResults() {
+      loadPersonalBest();
+      const isNewRecord = personalBest === null || score > personalBest;
+      if (isNewRecord) {
+        personalBest = score;
+        if (!storageUnavailable) {
+          try {
+            localStorage.setItem(personalBestKey, String(personalBest));
+          } catch {
+            storageUnavailable = true;
+          }
+        }
+      }
+
       const percent = (score / (questions.length * 10)) * 100;
       let emoji = "🚀";
       let heading = "¡Misión completada!";
@@ -623,13 +663,23 @@
       progressFill.style.width = "100%";
       progressTrack.setAttribute("aria-valuenow", String(questions.length));
       document.getElementById("question-count").textContent = "Misión finalizada";
-      document.getElementById("quiz").innerHTML = `
-        <section class="result" aria-live="polite">
+      const recordLabel = storageUnavailable ? "Mejor puntuación de esta sesión" : "Récord personal";
+      const recordMessage = isNewRecord
+        ? "¡Esta partida establece un nuevo récord!"
+        : "Tu récord anterior sigue siendo tu mejor puntuación.";
+      const storageNotice = storageUnavailable
+        ? "No se pudo guardar el récord en este navegador; se conservará mientras esta página permanezca abierta."
+        : "";
+      quizEl.innerHTML = `
+        <section class="result">
           <div class="result-emoji" aria-hidden="true">${emoji}</div>
           <p class="eyebrow">Fin de la misión</p>
           <h1>${heading}</h1>
           <p class="result-copy">${message}</p>
           <div class="final-score"><strong>${score}</strong><span>de 100 puntos</span></div>
+          <p class="personal-best">${recordLabel}: <strong>${personalBest} puntos</strong></p>
+          <p class="record-message">${recordMessage}</p>
+          ${storageNotice ? `<p class="storage-notice">${storageNotice}</p>` : ""}
           <button class="restart" id="restart" type="button">↻ &nbsp;Jugar de nuevo</button>
         </section>`;
       document.getElementById("restart").addEventListener("click", restartQuiz);
@@ -637,10 +687,21 @@
     }
 
     function restartQuiz() {
-      location.reload();
+      current = 0;
+      score = 0;
+      answered = false;
+      document.getElementById("score").textContent = "0";
+      quizEl.innerHTML = quizMarkup;
+      questionEl = document.getElementById("question");
+      answersEl = document.getElementById("answers");
+      feedbackEl = document.getElementById("feedback");
+      nextButton = document.getElementById("next");
+      nextButton.addEventListener("click", advanceQuestion);
+      renderQuestion();
+      questionEl.focus({ preventScroll: true });
     }
 
-    nextButton.addEventListener("click", () => {
+    function advanceQuestion() {
       if (!answered) return;
       if (current === questions.length - 1) {
         showResults();
@@ -649,8 +710,9 @@
         renderQuestion();
         questionEl.focus({ preventScroll: true });
       }
-    });
+    }
 
+    nextButton.addEventListener("click", advanceQuestion);
     renderQuestion();
   </script>
 </body>
