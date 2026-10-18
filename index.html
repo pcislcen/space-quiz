@@ -374,6 +374,31 @@
     .final-score strong { font-size: 24px; letter-spacing: -.04em; }
     .final-score span { color: var(--muted); font-size: 14px; }
 
+    .answer-review { margin: 0 0 21px; text-align: left; }
+    .answer-review h2 { margin: 0 0 10px; font-size: 16px; }
+    .answer-review-list { display: grid; gap: 9px; margin: 0; padding: 0; list-style: none; }
+    .answer-review-item {
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--surface-soft);
+      font-size: 14px;
+    }
+    .answer-review-question { margin: 0 0 7px; font-weight: 700; }
+    .answer-review-item p { margin: 4px 0 0; }
+    .answer-review-selected { color: var(--incorrect); }
+    .answer-review-correct { color: var(--correct); }
+    .answer-review-fact { margin-top: 8px !important; color: var(--muted); }
+    .all-correct {
+      margin: 0;
+      padding: 12px;
+      border-radius: 12px;
+      background: var(--correct-bg);
+      color: var(--correct);
+      font-size: 14px;
+      font-weight: 650;
+    }
+
     .result .restart { display: flex; width: 100%; }
     .sr-only {
       position: absolute;
@@ -536,6 +561,7 @@
     let current = 0;
     let score = 0;
     let answered = false;
+    const responses = [];
 
     const questionEl = document.getElementById("question");
     const answersEl = document.getElementById("answers");
@@ -575,6 +601,7 @@
       if (answered) return;
       answered = true;
       const item = questions[current];
+      responses[current] = selected;
       const correct = selected === item.correct;
       const buttons = [...answersEl.children];
       buttons.forEach((button, index) => {
@@ -632,6 +659,46 @@
           <div class="final-score"><strong>${score}</strong><span>de 100 puntos</span></div>
           <button class="restart" id="restart" type="button">↻ &nbsp;Jugar de nuevo</button>
         </section>`;
+      const review = document.createElement("section");
+      review.className = "answer-review";
+      review.setAttribute("aria-labelledby", "answer-review-title");
+      const reviewTitle = document.createElement("h2");
+      reviewTitle.id = "answer-review-title";
+      reviewTitle.textContent = "Respuestas para revisar";
+      review.append(reviewTitle);
+
+      const missed = questions
+        .map((item, index) => ({ item, response: responses[index] }))
+        .filter(({ item, response }) => response !== item.correct);
+      if (missed.length === 0) {
+        const allCorrect = document.createElement("p");
+        allCorrect.className = "all-correct";
+        allCorrect.textContent = "¡Todas tus respuestas fueron correctas!";
+        review.append(allCorrect);
+      } else {
+        const reviewList = document.createElement("ol");
+        reviewList.className = "answer-review-list";
+        missed.forEach(({ item, response }) => {
+          const reviewItem = document.createElement("li");
+          reviewItem.className = "answer-review-item";
+          const question = document.createElement("p");
+          question.className = "answer-review-question";
+          question.textContent = item.question;
+          const selectedAnswer = document.createElement("p");
+          selectedAnswer.className = "answer-review-selected";
+          selectedAnswer.textContent = `Tu respuesta: ${item.answers[response]}`;
+          const correctAnswer = document.createElement("p");
+          correctAnswer.className = "answer-review-correct";
+          correctAnswer.textContent = `Respuesta correcta: ${item.answers[item.correct]}`;
+          const fact = document.createElement("p");
+          fact.className = "answer-review-fact";
+          fact.textContent = item.fact;
+          reviewItem.append(question, selectedAnswer, correctAnswer, fact);
+          reviewList.append(reviewItem);
+        });
+        review.append(reviewList);
+      }
+      document.querySelector(".result").insertBefore(review, document.getElementById("restart"));
       document.getElementById("restart").addEventListener("click", restartQuiz);
       document.getElementById("restart").focus();
     }
